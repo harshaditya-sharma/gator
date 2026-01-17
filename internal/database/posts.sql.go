@@ -62,16 +62,37 @@ func (q *Queries) CreatePost(ctx context.Context, arg CreatePostParams) (Post, e
 	return i, err
 }
 
+const getPostByURL = `-- name: GetPostByURL :one
+SELECT id, created_at, updated_at, title, url, description, published_at, feed_id FROM posts WHERE url = $1
+`
+
+func (q *Queries) GetPostByURL(ctx context.Context, url string) (Post, error) {
+	row := q.db.QueryRowContext(ctx, getPostByURL, url)
+	var i Post
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Title,
+		&i.Url,
+		&i.Description,
+		&i.PublishedAt,
+		&i.FeedID,
+	)
+	return i, err
+}
+
 const getPostsForUser = `-- name: GetPostsForUser :many
 SELECT posts.id, posts.created_at, posts.updated_at, posts.title, posts.url, posts.description, posts.published_at, posts.feed_id, feeds.name as feed_name FROM
 posts JOIN feed_follows ON posts.feed_id = feed_follows.feed_id 
 JOIN feeds ON posts.feed_id=feeds.id WHERE feed_follows.user_id= $1
-ORDER BY published_at DESC LIMIT $2
+ORDER BY published_at DESC LIMIT $2 OFFSET $3
 `
 
 type GetPostsForUserParams struct {
 	UserID uuid.UUID
 	Limit  int32
+	Offset int32
 }
 
 type GetPostsForUserRow struct {
@@ -87,7 +108,7 @@ type GetPostsForUserRow struct {
 }
 
 func (q *Queries) GetPostsForUser(ctx context.Context, arg GetPostsForUserParams) ([]GetPostsForUserRow, error) {
-	rows, err := q.db.QueryContext(ctx, getPostsForUser, arg.UserID, arg.Limit)
+	rows, err := q.db.QueryContext(ctx, getPostsForUser, arg.UserID, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
@@ -95,6 +116,251 @@ func (q *Queries) GetPostsForUser(ctx context.Context, arg GetPostsForUserParams
 	var items []GetPostsForUserRow
 	for rows.Next() {
 		var i GetPostsForUserRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Title,
+			&i.Url,
+			&i.Description,
+			&i.PublishedAt,
+			&i.FeedID,
+			&i.FeedName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getPostsForUserAsc = `-- name: GetPostsForUserAsc :many
+SELECT posts.id, posts.created_at, posts.updated_at, posts.title, posts.url, posts.description, posts.published_at, posts.feed_id, feeds.name as feed_name FROM
+posts JOIN feed_follows ON posts.feed_id = feed_follows.feed_id 
+JOIN feeds ON posts.feed_id=feeds.id WHERE feed_follows.user_id= $1
+ORDER BY published_at ASC LIMIT $2 OFFSET $3
+`
+
+type GetPostsForUserAscParams struct {
+	UserID uuid.UUID
+	Limit  int32
+	Offset int32
+}
+
+type GetPostsForUserAscRow struct {
+	ID          uuid.UUID
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	Title       string
+	Url         string
+	Description sql.NullString
+	PublishedAt sql.NullTime
+	FeedID      uuid.UUID
+	FeedName    string
+}
+
+func (q *Queries) GetPostsForUserAsc(ctx context.Context, arg GetPostsForUserAscParams) ([]GetPostsForUserAscRow, error) {
+	rows, err := q.db.QueryContext(ctx, getPostsForUserAsc, arg.UserID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetPostsForUserAscRow
+	for rows.Next() {
+		var i GetPostsForUserAscRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Title,
+			&i.Url,
+			&i.Description,
+			&i.PublishedAt,
+			&i.FeedID,
+			&i.FeedName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getPostsForUserByFeed = `-- name: GetPostsForUserByFeed :many
+SELECT posts.id, posts.created_at, posts.updated_at, posts.title, posts.url, posts.description, posts.published_at, posts.feed_id, feeds.name as feed_name FROM
+posts JOIN feed_follows ON posts.feed_id = feed_follows.feed_id 
+JOIN feeds ON posts.feed_id=feeds.id WHERE feed_follows.user_id= $1 AND feeds.name = $3
+ORDER BY published_at DESC LIMIT $2 OFFSET $4
+`
+
+type GetPostsForUserByFeedParams struct {
+	UserID uuid.UUID
+	Limit  int32
+	Name   string
+	Offset int32
+}
+
+type GetPostsForUserByFeedRow struct {
+	ID          uuid.UUID
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	Title       string
+	Url         string
+	Description sql.NullString
+	PublishedAt sql.NullTime
+	FeedID      uuid.UUID
+	FeedName    string
+}
+
+func (q *Queries) GetPostsForUserByFeed(ctx context.Context, arg GetPostsForUserByFeedParams) ([]GetPostsForUserByFeedRow, error) {
+	rows, err := q.db.QueryContext(ctx, getPostsForUserByFeed,
+		arg.UserID,
+		arg.Limit,
+		arg.Name,
+		arg.Offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetPostsForUserByFeedRow
+	for rows.Next() {
+		var i GetPostsForUserByFeedRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Title,
+			&i.Url,
+			&i.Description,
+			&i.PublishedAt,
+			&i.FeedID,
+			&i.FeedName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getPostsForUserByFeedAsc = `-- name: GetPostsForUserByFeedAsc :many
+SELECT posts.id, posts.created_at, posts.updated_at, posts.title, posts.url, posts.description, posts.published_at, posts.feed_id, feeds.name as feed_name FROM
+posts JOIN feed_follows ON posts.feed_id = feed_follows.feed_id 
+JOIN feeds ON posts.feed_id=feeds.id WHERE feed_follows.user_id= $1 AND feeds.name = $3
+ORDER BY published_at ASC LIMIT $2 OFFSET $4
+`
+
+type GetPostsForUserByFeedAscParams struct {
+	UserID uuid.UUID
+	Limit  int32
+	Name   string
+	Offset int32
+}
+
+type GetPostsForUserByFeedAscRow struct {
+	ID          uuid.UUID
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	Title       string
+	Url         string
+	Description sql.NullString
+	PublishedAt sql.NullTime
+	FeedID      uuid.UUID
+	FeedName    string
+}
+
+func (q *Queries) GetPostsForUserByFeedAsc(ctx context.Context, arg GetPostsForUserByFeedAscParams) ([]GetPostsForUserByFeedAscRow, error) {
+	rows, err := q.db.QueryContext(ctx, getPostsForUserByFeedAsc,
+		arg.UserID,
+		arg.Limit,
+		arg.Name,
+		arg.Offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetPostsForUserByFeedAscRow
+	for rows.Next() {
+		var i GetPostsForUserByFeedAscRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Title,
+			&i.Url,
+			&i.Description,
+			&i.PublishedAt,
+			&i.FeedID,
+			&i.FeedName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getPostsForUserMatching = `-- name: GetPostsForUserMatching :many
+SELECT posts.id, posts.created_at, posts.updated_at, posts.title, posts.url, posts.description, posts.published_at, posts.feed_id, feeds.name as feed_name FROM
+posts JOIN feed_follows ON posts.feed_id = feed_follows.feed_id 
+JOIN feeds ON posts.feed_id=feeds.id WHERE feed_follows.user_id= $1
+AND (posts.title ILIKE '%' || $3 || '%' OR posts.description ILIKE '%' || $3 || '%')
+ORDER BY published_at DESC LIMIT $2
+`
+
+type GetPostsForUserMatchingParams struct {
+	UserID     uuid.UUID
+	Limit      int32
+	SearchTerm sql.NullString
+}
+
+type GetPostsForUserMatchingRow struct {
+	ID          uuid.UUID
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	Title       string
+	Url         string
+	Description sql.NullString
+	PublishedAt sql.NullTime
+	FeedID      uuid.UUID
+	FeedName    string
+}
+
+func (q *Queries) GetPostsForUserMatching(ctx context.Context, arg GetPostsForUserMatchingParams) ([]GetPostsForUserMatchingRow, error) {
+	rows, err := q.db.QueryContext(ctx, getPostsForUserMatching, arg.UserID, arg.Limit, arg.SearchTerm)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetPostsForUserMatchingRow
+	for rows.Next() {
+		var i GetPostsForUserMatchingRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.CreatedAt,

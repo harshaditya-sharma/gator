@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -18,8 +19,8 @@ import (
 )
 
 func HandlerAgg(s *config.State, cmd Command) error {
-	if len(cmd.Args) != 1 {
-		return fmt.Errorf("usage: %v <time_between_reqs>", cmd.Name)
+	if len(cmd.Args) < 1 || len(cmd.Args) > 2 {
+		return fmt.Errorf("usage: %v <time_between_reqs> <concurrency>", cmd.Name)
 	}
 
 	timeBetweenRequests, err := time.ParseDuration(cmd.Args[0])
@@ -27,28 +28,53 @@ func HandlerAgg(s *config.State, cmd Command) error {
 		return fmt.Errorf("invalid duration: %w", err)
 	}
 
-	fmt.Printf("Collecting feeds every %s...\n", timeBetweenRequests)
+	concurrency := 4
+	if len(cmd.Args) == 2 {
+		if _, err := fmt.Sscanf(cmd.Args[1], "%d", &concurrency); err != nil {
+			return fmt.Errorf("invalid concurrency: %w", err)
+		}
+	}
+
+	fmt.Printf("Collecting feeds every %s with %d workers...\n", timeBetweenRequests, concurrency)
 
 	ticker := time.NewTicker(timeBetweenRequests)
 
 	for ; ; <-ticker.C {
-		if err := scrapeFeeds(s); err != nil {
-			return err
+		if err := scrapeFeeds(s, concurrency); err != nil {
+			// Don't kill the ticker on error, just log it
+			fmt.Printf("Error scraping feeds: %v\n", err)
 		}
 	}
 }
 
-func scrapeFeeds(s *config.State) error {
-	feed, err := s.Db.GetNextFeedToFetch(context.Background())
+func scrapeFeeds(s *config.State, concurrency int) error {
+	feeds, err := s.Db.GetNextFeedsToFetch(context.Background(), int32(concurrency))
 	if err != nil {
-		return fmt.Errorf("Error getting next feed to fetch\n%w", err)
+		return fmt.Errorf("Error getting next feeds to fetch\n%w", err)
 	}
-	if s.Db.MarkFeedFetched(context.Background(), feed.ID) != nil {
-		return fmt.Errorf("Error marking feed %s as fetched.", feed.Name)
+
+	var wg sync.WaitGroup
+	for _, feed := range feeds {
+		dbFeed := database.Feed{
+			ID:            feed.ID,
+			CreatedAt:     feed.CreatedAt,
+			UpdatedAt:     feed.UpdatedAt,
+			Name:          feed.Name,
+			Url:           feed.Url,
+			UserID:        feed.UserID,
+			LastFetchedAt: feed.LastFetchedAt,
+		}
+		if s.Db.MarkFeedFetched(context.Background(), feed.ID) != nil {
+			fmt.Printf("Error marking feed %s as fetched.\n", feed.Name)
+			continue
+		}
+		wg.Add(1)
+		go func(f database.Feed) {
+			defer wg.Done()
+			scrapeFeed(s.Db, f)
+		}(dbFeed)
 	}
-	if err := scrapeFeed(s.Db, feed); err != nil {
-		return err
-	}
+	wg.Wait()
 	return nil
 }
 

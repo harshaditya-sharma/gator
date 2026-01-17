@@ -52,4 +52,33 @@ echo "Browsing posts for user2 (limit 2):"
 echo "Browsing posts for user1 (limit 2):"
 ./gator browse 2
 
+# Test Browse Pagination
+echo "Browsing posts page 2:"
+./gator browse 2 2
+
+# Test Browse Filtering
+echo "Browsing posts from 'Lane\'s Blog':"
+./gator browse 5 1 -f "Lane's Blog"
+
+# Test Search
+echo "Searching for 'coding'..."
+./gator search "coding"
+
+# Test Like/Unlike
+# Capture a URL from the browse output to test liking
+POST_URL=$(./gator browse 1 | grep "Link:" | head -n 1 | sed 's/Link: //')
+
+if [ -n "$POST_URL" ]; then
+    echo "Liking post: $POST_URL"
+    ./gator like "$POST_URL"
+
+    echo "Verifying liked posts:"
+    ./gator liked 1 1
+
+    echo "Unliking post: $POST_URL"
+    ./gator unlike "$POST_URL"
+else
+    echo "No posts found to like."
+fi
+
 echo "Test complete!"

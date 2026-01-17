@@ -51,6 +51,10 @@ func main() {
 	cmds.Register("following", commands.MiddlewareLoggedIn(commands.HandlerFollowing))
 	cmds.Register("unfollow", commands.MiddlewareLoggedIn(commands.HandlerUnfollow))
 	cmds.Register("browse", commands.MiddlewareLoggedIn(commands.HandlerBrowse))
+	cmds.Register("search", commands.MiddlewareLoggedIn(commands.HandlerSearch))
+	cmds.Register("like", commands.MiddlewareLoggedIn(commands.HandlerLike))
+	cmds.Register("unlike", commands.MiddlewareLoggedIn(commands.HandlerUnlike))
+	cmds.Register("liked", commands.MiddlewareLoggedIn(commands.HandlerLiked))
 	cmdName := os.Args[1]
 	args := os.Args[2:]
 

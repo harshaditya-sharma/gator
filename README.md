@@ -73,21 +73,65 @@ Here are some common commands you can use with Gator:
   gator unfollow <feed_url>
   ```
 
+- **List all feeds:**
+
+  ```bash
+  gator feeds
+  ```
+
 - **Aggregate posts (this runs in the background or purely to fetch updates):**
 
   ```bash
-  gator agg <time_between_requests>
+  gator agg <time_between_requests> [concurrency]
   ```
 
-  Example: `gator agg 1m`
+  Arguments:
+  - `time_between_requests`: Duration between scrapes (e.g., `1s`, `1m`, `1h`)
+  - `concurrency`: Number of concurrent workers (default: 4)
+
+  Example: `gator agg 1m 10`
 
 - **Browse posts:**
 
   ```bash
-  gator browse <limit>
+  gator browse <limit> <page> [flags]
   ```
 
-  Example: `gator browse 5`
+  Arguments:
+  - `limit`: Number of posts to retrieve (default: 2)
+  - `page`: Page number (default: 1)
+
+  Flags:
+  - `--sort` or `-s`: Sort order (`asc` or `desc`)
+  - `--feed` or `-f`: Filter by feed name
+
+  Example: `gator browse 5 2 --sort asc --feed "Hacker News"`
+
+- **Search posts:**
+
+  ```bash
+  gator search <query>
+  ```
+
+  Performs a fuzzy search on post titles and descriptions.
+
+- **Like a post:**
+
+  ```bash
+  gator like <post_url>
+  ```
+
+- **Unlike a post:**
+
+  ```bash
+  gator unlike <post_url>
+  ```
+
+- **List liked posts:**
+
+  ```bash
+  gator liked <limit> <page>
+  ```
 
 - **List all users:**
 
