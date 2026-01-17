@@ -1,0 +1,14 @@
+out
+.env
+
+gator
+
+.DS_Store
+Thumbs.db
+
+vendor/
+*.exe
+*.test
+*.out
+
+.vscode/
